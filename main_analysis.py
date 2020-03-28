@@ -9,8 +9,10 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+sns.set()
 
 CDIR = os.path.abspath(os.path.dirname(__file__))
 DATA_DIR = os.path.join(CDIR, 'data')
@@ -35,9 +37,10 @@ class ExploratoryDataAnalysis():
         Highly imbalanced (around 500 times fewer anomalies)
         Reducing any dimensions strongly reduces the explained
             variance.
+        Very little correlation between features (only small
+            correlations with amount and other features)
     TODO: UMAP and view clusters, see if outliers immediately obvious
-    TODO: Plot a heatmap to show feature correlation
-    TODO: Think of how to incorporate time feature.
+    TODO: Plot histograms of all variables.
     """
     def __init__(self, data):
         self.data = data
@@ -53,6 +56,8 @@ class ExploratoryDataAnalysis():
     def plot_all(self):
         self.plot_PCA()
         self.plot_explained_variance()
+        self.plot_structured_heatmap()
+        self.plot_pairplot()
 
     def count_nans(self):
         """ Count nans in dataframe columns """
@@ -111,13 +116,29 @@ class ExploratoryDataAnalysis():
         fpath = os.path.join(PLOT_DIR, 'explained_variance.png')
         plt.savefig(fpath)
         plt.close()
-        breakpoint()
+
+    def plot_structured_heatmap(self):
+        features, _ = self.get_feats_labels()
+
+        sns.clustermap(features.corr(), center=0, cmap="vlag", linewidths=.75,
+                figsize=(13, 13))
+        plt.tight_layout()
+        fpath = os.path.join(PLOT_DIR, 'structured_heatmap.png')
+        plt.savefig(fpath)
+        plt.close()
+
+    def plot_pairplot(self):
+        sns.pairplot(self.data, hue='Class')
+        plt.tight_layout()
+        fpath = os.path.join(PLOT_DIR, 'pair_plot.png')
+        plt.savefig(fpath)
+        plt.close()
 
     def get_feats_labels(self):
-        not_feats = ['Time', 'Class']
-        feature_cols = [x for x in self.data.columns if x not in not_feats]
-        features = self.data[feature_cols].values
-        labels = self.data['Class'].values
+        label_col = 'Class'
+        feature_cols = [x for x in self.data.columns if x != label_col] 
+        features = self.data[feature_cols]
+        labels = self.data[label_col]
         return features, labels
 
 if __name__ == "__main__":
