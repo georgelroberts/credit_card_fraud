@@ -11,8 +11,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import umap
+import lightgbm as lgb
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score, roc_auc_score
 sns.set()
 
 CDIR = os.path.abspath(os.path.dirname(__file__))
@@ -22,13 +25,56 @@ PLOT_DIR = os.path.join(CDIR, 'plots')
 
 def main():
     data = load_data()
-    eda = ExploratoryDataAnalysis(data)
-    # eda.print_all()
-    eda.plot_all()
+    eda = ExploratoryDataAnalysis(data, print_out=False, plot_out=False)
+    modelling = Modelling(data, tuning=False)
 
 
 def load_data():
     return pd.read_csv(os.path.join(DATA_DIR, 'creditcard.csv'))
+
+
+class Modelling():
+    """ Model the dataset
+    TODO: Use SMOTE/lightgbm imbalance parameter
+    TODO: Think carefully about which score to use. Show F1 and AUC first.
+    """
+    def __init__(self, data, tuning=False):
+        self.data = data
+        if tuning:
+            self.hyperparameter_tuning()
+        else:
+            self.complete_model()
+
+    def complete_model(self):
+        train_X, test_X, train_y, test_y = self.preprocess_data()
+        clf = lgb.LGBMClassifier()
+        clf.fit(train_X, train_y)
+        pred_y = clf.predict(test_X)
+        pred_f1 = f1_score(test_y, pred_y)
+        pred_auc = roc_auc_score(test_y, pred_y)
+        print(f'Test F1: {pred_f1}; Test ROC-AUC: {pred_auc}')
+
+    def preprocess_data(self, upsample=False):
+        """ Separate into train and test 
+        Use either upsampling or stratified splitting
+        """
+        cols = self.data.columns
+        y_col = 'Class'
+        X_cols = [x for x in cols if x != y_col]
+        all_X = self.data[X_cols]
+        all_y = self.data[y_col]
+        if upsample:
+            # Do SMOTE upsampling
+            return
+        else:
+            train_X, test_X, train_y, test_y = train_test_split(
+                    all_X, all_y, stratify=all_y, test_size=0.3)
+            return train_X, test_X, train_y, test_y
+
+    def hyperparameter_tuning(self):
+        train_X, _, train_y, _ = self.preprocess_data()
+        train_X, cv_X, train_y, cv_y = train_test_split(
+                train_X, train_y, stratify=train_y, test_size=0.3)
 
 
 class ExploratoryDataAnalysis():
@@ -45,8 +91,12 @@ class ExploratoryDataAnalysis():
         UMAP doesn't help, clusters created don't help identify the
             classes
     """
-    def __init__(self, data):
+    def __init__(self, data, print_out=True, plot_out=True):
         self.data = data
+        if print_out:
+            self.print_all()
+        if plot_out:
+            self.plot_all()
 
     def print_all(self):
         """ Do everything that requires printing to console """
@@ -57,11 +107,11 @@ class ExploratoryDataAnalysis():
         self.class_imbalance()
 
     def plot_all(self):
-        # self.plot_PCA()
+        self.plot_PCA()
+        self.plot_explained_variance()
         self.plot_umap()
-        # self.plot_explained_variance()
-        # self.plot_structured_heatmap()
-        # self.plot_pairplot()
+        self.plot_structured_heatmap()
+        self.plot_pairplot()
 
     def count_nans(self):
         """ Count nans in dataframe columns """
@@ -151,7 +201,7 @@ class ExploratoryDataAnalysis():
         different clusters
         """
         features, labels = self.get_feats_labels()
-        no_samples = 20000
+        no_samples = 50000
         features = features.sample(no_samples).values
         labels = labels.sample(no_samples).values
         neighbours = [3, 10, 100]
