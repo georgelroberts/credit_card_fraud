@@ -3,6 +3,8 @@ Author: George L. Roberts
 Date: 28-03-2020
 About: Analysis of kaggle credit card fraud dataset
 https://www.kaggle.com/mlg-ulb/creditcardfraud
+Most of the kernels shown there are flawed by upsampling and then
+separating into train and test.
 """
 
 import os
@@ -16,6 +18,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, roc_auc_score
+from imblearn.over_sampling import SMOTE
 sns.set()
 
 CDIR = os.path.abspath(os.path.dirname(__file__))
@@ -35,7 +38,11 @@ def load_data():
 
 class Modelling():
     """ Model the dataset
-    TODO: Use SMOTE/lightgbm imbalance parameter
+    Notes:
+        Because it's fraud detection, we probably want to prioritise recall
+        slightly over precision.
+        SMOTE upsampling performs far better than setting lightGBM parameter
+        is_unbalanced
     TODO: Think carefully about which score to use. Show F1 and AUC first.
     """
     def __init__(self, data, tuning=False):
@@ -54,7 +61,7 @@ class Modelling():
         pred_auc = roc_auc_score(test_y, pred_y)
         print(f'Test F1: {pred_f1}; Test ROC-AUC: {pred_auc}')
 
-    def preprocess_data(self, upsample=False):
+    def preprocess_data(self, upsample=True):
         """ Separate into train and test 
         Use either upsampling or stratified splitting
         """
@@ -63,18 +70,20 @@ class Modelling():
         X_cols = [x for x in cols if x != y_col]
         all_X = self.data[X_cols]
         all_y = self.data[y_col]
+        train_X, test_X, train_y, test_y = train_test_split(
+                all_X, all_y, stratify=all_y, test_size=0.3)
         if upsample:
-            # Do SMOTE upsampling
-            return
-        else:
-            train_X, test_X, train_y, test_y = train_test_split(
-                    all_X, all_y, stratify=all_y, test_size=0.3)
-            return train_X, test_X, train_y, test_y
+            sm = SMOTE(random_state=42)
+            train_X, train_y = sm.fit_resample(train_X, train_y)
+        return train_X, test_X, train_y, test_y
 
     def hyperparameter_tuning(self):
         train_X, _, train_y, _ = self.preprocess_data()
         train_X, cv_X, train_y, cv_y = train_test_split(
                 train_X, train_y, stratify=train_y, test_size=0.3)
+
+    def shap_model_analysis(self):
+        pass
 
 
 class ExploratoryDataAnalysis():
