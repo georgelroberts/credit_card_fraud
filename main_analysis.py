@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import umap
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 sns.set()
@@ -39,8 +40,10 @@ class ExploratoryDataAnalysis():
             variance.
         Very little correlation between features (only small
             correlations with amount and other features)
-    TODO: UMAP and view clusters, see if outliers immediately obvious
-    TODO: Plot histograms of all variables.
+        Looking at the pairplot, it actually looks as if the features
+            do diverge a fair bit, F1 could be high for this
+        UMAP doesn't help, clusters created don't help identify the
+            classes
     """
     def __init__(self, data):
         self.data = data
@@ -54,10 +57,11 @@ class ExploratoryDataAnalysis():
         self.class_imbalance()
 
     def plot_all(self):
-        self.plot_PCA()
-        self.plot_explained_variance()
-        self.plot_structured_heatmap()
-        self.plot_pairplot()
+        # self.plot_PCA()
+        self.plot_umap()
+        # self.plot_explained_variance()
+        # self.plot_structured_heatmap()
+        # self.plot_pairplot()
 
     def count_nans(self):
         """ Count nans in dataframe columns """
@@ -83,7 +87,8 @@ class ExploratoryDataAnalysis():
         """ Principal component analysis to identify any patterns
         """
         features, labels = self.get_feats_labels()
-        features = StandardScaler().fit_transform(features)
+        scaler = StandardScaler()
+        features = scaler.fit_transform(features)
 
         pca = PCA(n_components=2)
         components = pca.fit_transform(features)
@@ -128,11 +133,42 @@ class ExploratoryDataAnalysis():
         plt.close()
 
     def plot_pairplot(self):
+        sns.pairplot(self.data[['Time', 'Amount', 'Class']], hue='Class')
+        plt.tight_layout()
+        fpath = os.path.join(PLOT_DIR, 'pair_plot_small.png')
+        plt.savefig(fpath)
+        plt.close()
+
         sns.pairplot(self.data, hue='Class')
         plt.tight_layout()
         fpath = os.path.join(PLOT_DIR, 'pair_plot.png')
         plt.savefig(fpath)
         plt.close()
+
+    def plot_umap(self):
+        """
+        It's important to plot umap at different scales to identify
+        different clusters
+        """
+        features, labels = self.get_feats_labels()
+        no_samples = 20000
+        features = features.sample(no_samples).values
+        labels = labels.sample(no_samples).values
+        neighbours = [3, 10, 100]
+        min_dists = [0.1, 0.5, 0.99]
+        for neighbour in neighbours:
+            for min_dist in min_dists:
+                reducer = umap.UMAP(n_neighbors=neighbour, min_dist=min_dist)
+                embedding = reducer.fit_transform(features)
+                fig, ax = plt.subplots()
+                colours = [sns.color_palette()[x] for x in labels]
+                ax.scatter(embedding[:, 0], embedding[:, 1], c=colours)
+                min_dist_str = str(min_dist).replace('.', '-')
+                plt.tight_layout()
+                fname = f'umap_{neighbour}-neigbhours_{min_dist_str}-mindist.png'
+                fpath = os.path.join(PLOT_DIR, fname)
+                plt.savefig(fpath)
+                plt.close()
 
     def get_feats_labels(self):
         label_col = 'Class'
